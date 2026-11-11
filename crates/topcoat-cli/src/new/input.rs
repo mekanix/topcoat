@@ -2,8 +2,8 @@ use clap::Args;
 use topcoat_font::fontsource::Family;
 
 use super::{
-    choice::{Database, DatabaseBackend, Font, Icons, Interaction, Routing},
-    options::{DatabaseSetup, FontSetup, IconSetup, ProjectOptions, UI_ICON_SET},
+    choice::{Css, Database, DatabaseBackend, Font, Icons, Interaction, Routing},
+    options::{DatabaseSetup, FontSetup, IconSetup, ProjectOptions},
 };
 
 /// The Iconify set used when none is named.
@@ -38,12 +38,12 @@ pub struct ChoiceArgs {
     /// Browser interaction approach
     #[arg(long, value_name = "APPROACH")]
     interaction: Option<Interaction>,
-    /// Style pages with Tailwind CSS
-    #[arg(long, conflicts_with = "no_tailwind")]
-    tailwind: bool,
-    /// Style pages with a plain CSS stylesheet
+    /// CSS framework for pages and components [default: tailwind, or plain CSS with --minimal]
+    #[arg(long, value_name = "FRAMEWORK", conflicts_with = "no_css")]
+    css: Option<Css>,
+    /// Use a plain CSS stylesheet without a CSS framework
     #[arg(long)]
-    no_tailwind: bool,
+    no_css: bool,
     /// Icon source
     #[arg(long, value_name = "SOURCE")]
     icons: Option<Icons>,
@@ -53,11 +53,10 @@ pub struct ChoiceArgs {
     /// Font source
     #[arg(long, value_name = "SOURCE")]
     font: Option<Font>,
-    /// Fontsource family ID [default: inter, or geist with UI]
+    /// Fontsource family ID [default: inter, or geist with Tailwind UI]
     #[arg(long, value_name = "FAMILY")]
     font_family: Option<String>,
-    /// Install Topcoat UI components (requires Tailwind and Iconify; loads Geist unless --font is
-    /// given)
+    /// Use components from the selected CSS framework
     #[arg(long, conflicts_with = "no_ui")]
     ui: bool,
     /// Do not install Topcoat UI components
@@ -99,7 +98,6 @@ impl Preset {
                 routing: Routing::Module,
                 database: Database::Toasty,
                 interaction: Interaction::Topcoat,
-                tailwind: true,
                 icons: Icons::Iconify,
                 font: Font::Fontsource,
                 ui: true,
@@ -109,7 +107,6 @@ impl Preset {
                 routing: Routing::Module,
                 database: Database::None,
                 interaction: Interaction::None,
-                tailwind: false,
                 icons: Icons::None,
                 font: Font::None,
                 ui: false,
@@ -124,7 +121,6 @@ pub struct PresetChoices {
     pub routing: Routing,
     pub database: Database,
     pub interaction: Interaction,
-    pub tailwind: bool,
     pub icons: Icons,
     pub font: Font,
     pub ui: bool,
@@ -138,8 +134,6 @@ pub enum Origin {
     Flag,
     /// A preset's value for a choice not given as a flag.
     Preset(Preset),
-    /// A prerequisite of another choice.
-    Inferred,
     /// An answer to a wizard question.
     Prompt,
 }
@@ -163,7 +157,7 @@ pub struct Input {
     pub database: Option<Sourced<Database>>,
     pub database_backend: Option<DatabaseBackend>,
     pub interaction: Option<Sourced<Interaction>>,
-    pub tailwind: Option<Sourced<bool>>,
+    pub css: Sourced<Css>,
     pub icons: Option<Sourced<Icons>>,
     pub icon_set: Option<String>,
     pub font: Option<Sourced<Font>>,
@@ -173,20 +167,29 @@ pub struct Input {
 }
 
 impl Input {
-    /// Collects the choices made by `args`: explicit flags first, then the selected
-    /// preset for choices the flags leave open, then prerequisites of the result.
+    /// Collects the choices made by `args`, then fills open choices from the preset.
     pub fn new(args: ChoiceArgs) -> Self {
         fn flag<T>(value: T) -> Sourced<T> {
             Sourced::new(value, Origin::Flag)
         }
 
         let preset = args.preset();
+        let css = if args.no_css {
+            Css::None
+        } else {
+            args.css
+                .unwrap_or(if preset == Some(Preset::Minimal) && !args.ui {
+                    Css::None
+                } else {
+                    Css::Tailwind
+                })
+        };
         let mut input = Self {
             routing: args.routing.map(flag),
             database: args.database.map(flag),
             database_backend: args.database_backend,
             interaction: args.interaction.map(flag),
-            tailwind: switch(args.tailwind, args.no_tailwind).map(flag),
+            css: flag(css),
             icons: args.icons.map(flag),
             icon_set: args.icon_set,
             font: args.font.map(flag),
@@ -197,7 +200,6 @@ impl Input {
         if let Some(preset) = preset {
             input.fill(preset);
         }
-        input.infer();
         input
     }
 
@@ -211,8 +213,6 @@ impl Input {
             .get_or_insert(Sourced::new(choices.database, origin));
         self.interaction
             .get_or_insert(Sourced::new(choices.interaction, origin));
-        self.tailwind
-            .get_or_insert(Sourced::new(choices.tailwind, origin));
         self.icons
             .get_or_insert(Sourced::new(choices.icons, origin));
         self.font.get_or_insert(Sourced::new(choices.font, origin));
@@ -221,30 +221,7 @@ impl Input {
             .get_or_insert(Sourced::new(choices.example, origin));
     }
 
-    /// Fills open choices that follow from the choices already made. Topcoat UI
-    /// requires Tailwind and Iconify, and is unavailable without either. It also loads
-    /// its theme's font from Fontsource unless another font choice is made.
-    pub fn infer(&mut self) {
-        if self.ui.is_some_and(|ui| ui.value) {
-            self.tailwind
-                .get_or_insert(Sourced::new(true, Origin::Inferred));
-            self.icons
-                .get_or_insert(Sourced::new(Icons::Iconify, Origin::Inferred));
-            self.font
-                .get_or_insert(Sourced::new(Font::Fontsource, Origin::Inferred));
-        }
-
-        let ui_unavailable = self.tailwind.is_some_and(|tailwind| !tailwind.value)
-            || self
-                .icons
-                .is_some_and(|icons| icons.value != Icons::Iconify);
-        if ui_unavailable {
-            self.ui.get_or_insert(Sourced::new(false, Origin::Inferred));
-        }
-    }
-
-    /// Records the answer to a wizard question, then fills the choices that follow from
-    /// it.
+    /// Records the answer to a wizard question.
     pub fn answer(&mut self, answer: Answer) {
         fn prompt<T>(value: T) -> Sourced<T> {
             Sourced::new(value, Origin::Prompt)
@@ -254,34 +231,30 @@ impl Input {
             Answer::Routing(value) => self.routing = Some(prompt(value)),
             Answer::Database(value) => self.database = Some(prompt(value)),
             Answer::Interaction(value) => self.interaction = Some(prompt(value)),
-            Answer::Tailwind(value) => self.tailwind = Some(prompt(value)),
             Answer::Icons(value) => self.icons = Some(prompt(value)),
             Answer::Font(value) => self.font = Some(prompt(value)),
             Answer::Ui(value) => self.ui = Some(prompt(value)),
             Answer::Example(value) => self.example = Some(prompt(value)),
         }
-        self.infer();
     }
 
-    /// The Fontsource family used when none is named: the UI theme's font if Topcoat UI
-    /// is selected.
+    /// The Fontsource family used when none is named: the Tailwind UI theme's font if
+    /// Topcoat UI is selected.
     pub fn default_font_family(&self) -> &'static str {
-        if self.ui.is_some_and(|ui| ui.value) {
+        if self.css.value == Css::Tailwind && self.ui.is_some_and(|ui| ui.value) {
             UI_FONT_FAMILY
         } else {
             DEFAULT_FONT_FAMILY
         }
     }
 
-    /// The open top-level choices, in the order the wizard asks them. Topcoat UI comes
-    /// before the integrations it requires, so choosing it answers them.
+    /// The open top-level choices, in the order the wizard asks them.
     pub fn questions(&self) -> Vec<Question> {
         [
             (self.routing.is_none(), Question::Routing),
             (self.database.is_none(), Question::Database),
             (self.interaction.is_none(), Question::Interaction),
             (self.ui.is_none(), Question::Ui),
-            (self.tailwind.is_none(), Question::Tailwind),
             (self.icons.is_none(), Question::Icons),
             (self.font.is_none(), Question::Font),
             (self.example.is_none(), Question::Example),
@@ -300,7 +273,6 @@ impl Input {
             Some(routing),
             Some(database),
             Some(interaction),
-            Some(tailwind),
             Some(icons),
             Some(font),
             Some(ui),
@@ -309,7 +281,6 @@ impl Input {
             self.routing,
             self.database,
             self.interaction,
-            self.tailwind,
             self.icons,
             self.font,
             self.ui,
@@ -323,17 +294,11 @@ impl Input {
             ));
         };
 
-        if ui.value && !tailwind.value {
-            return Err(conflict(
-                "Topcoat UI requires Tailwind",
-                [(ui.origin, "--no-ui"), (tailwind.origin, "--tailwind")],
-            ));
-        }
-        if ui.value && icons.value != Icons::Iconify {
-            return Err(conflict(
-                "Topcoat UI requires Iconify icons",
-                [(ui.origin, "--no-ui"), (icons.origin, "--icons iconify")],
-            ));
+        if ui.value && self.css.value == Css::None {
+            return Err(
+                "Topcoat UI requires a CSS framework; also pass --no-ui or --css tailwind or --css chota"
+                    .to_string(),
+            );
         }
 
         let database_setup = match (database.value, self.database_backend) {
@@ -374,7 +339,7 @@ impl Input {
             routing: routing.value,
             database: database_setup,
             interaction: interaction.value,
-            tailwind: tailwind.value,
+            css: self.css.value,
             icons: icon_setup,
             font: font_setup,
             ui: ui.value,
@@ -382,30 +347,11 @@ impl Input {
         };
 
         let mut notes = Vec::new();
-        // The wizard's Topcoat UI question already names the integrations it requires.
-        let ui_prompted = ui.origin == Origin::Prompt;
-        if tailwind.origin == Origin::Inferred && !ui_prompted {
-            notes.push("Tailwind is enabled because Topcoat UI requires it".to_string());
-        }
-        if icons.origin == Origin::Inferred && !ui_prompted {
-            notes.push("Iconify icons are enabled because Topcoat UI requires them".to_string());
-        }
-        if font.origin == Origin::Inferred && !ui_prompted {
+        if options.ui && options.css == Css::Tailwind && options.font == FontSetup::None {
             notes.push(
-                "The Geist font is loaded from Fontsource for the Topcoat UI theme".to_string(),
-            );
-        }
-        if options.ui && options.font == FontSetup::None {
-            notes.push(
-                "The Topcoat UI theme expects the Geist font and falls back to the system font"
+                "The Tailwind UI theme expects the Geist font and falls back to the system font"
                     .to_string(),
             );
-        }
-        if options.ui && !matches!(&options.icons, IconSetup::Iconify { set } if set == UI_ICON_SET)
-        {
-            notes.push(format!(
-                "The `{UI_ICON_SET}` icon set is also staged because Topcoat UI components use it"
-            ));
         }
 
         Ok(Resolution { options, notes })
@@ -419,7 +365,6 @@ pub enum Question {
     Database,
     Interaction,
     Ui,
-    Tailwind,
     Icons,
     Font,
     Example,
@@ -432,7 +377,6 @@ impl Question {
             Self::Routing => "--routing",
             Self::Database => "--database",
             Self::Interaction => "--interaction",
-            Self::Tailwind => "--tailwind or --no-tailwind",
             Self::Icons => "--icons",
             Self::Font => "--font",
             Self::Ui => "--ui or --no-ui",
@@ -447,7 +391,6 @@ pub enum Answer {
     Routing(Routing),
     Database(Database),
     Interaction(Interaction),
-    Tailwind(bool),
     Icons(Icons),
     Font(Font),
     Ui(bool),
@@ -466,22 +409,6 @@ fn switch(enabled: bool, disabled: bool) -> Option<bool> {
         (true, _) => Some(true),
         (_, true) => Some(false),
         _ => None,
-    }
-}
-
-/// Describes two choices that cannot be combined. `overrides` pairs each choice's
-/// origin with the flag that changes it; only choices not given as explicit flags are
-/// suggested for overriding.
-fn conflict(message: &str, overrides: [(Origin, &str); 2]) -> String {
-    let suggestions: Vec<&str> = overrides
-        .iter()
-        .filter(|(origin, _)| *origin != Origin::Flag)
-        .map(|(_, flag)| *flag)
-        .collect();
-    if suggestions.is_empty() {
-        format!("{message}, so these flags cannot be combined")
-    } else {
-        format!("{message}; also pass {}", suggestions.join(" or "))
     }
 }
 
@@ -558,117 +485,57 @@ mod tests {
     }
 
     #[test]
-    fn preset_conflicts_suggest_overriding_the_preset_choice() {
-        let error = resolve(&["--recommended", "--no-tailwind"]).unwrap_err();
-        assert!(error.contains("--no-ui"));
-        assert!(resolve(&["--recommended", "--no-tailwind", "--no-ui"]).is_ok());
-
-        let error = resolve(&["--minimal", "--ui"]).unwrap_err();
-        assert!(error.contains("--tailwind"));
-        let error = resolve(&["--minimal", "--ui", "--tailwind"]).unwrap_err();
-        assert!(error.contains("--icons iconify"));
-        assert!(resolve(&["--minimal", "--ui", "--tailwind", "--icons", "iconify"]).is_ok());
+    fn css_defaults_depend_on_the_preset() {
+        assert_eq!(resolve(&["--recommended"]).unwrap().css, Css::Tailwind);
+        assert_eq!(resolve(&["--minimal"]).unwrap().css, Css::None);
     }
 
     #[test]
-    fn explicitly_conflicting_flags_are_rejected() {
-        assert!(resolve(&["--recommended", "--ui", "--no-tailwind"]).is_err());
-        assert!(resolve(&["--recommended", "--ui", "--icons", "custom"]).is_err());
-    }
+    fn css_and_ui_choices_are_independent() {
+        let options = resolve(&["--recommended", "--css", "chota"]).unwrap();
+        assert_eq!(options.css, Css::Chota);
+        assert!(options.ui);
 
-    #[test]
-    fn ui_answers_its_prerequisites() {
-        let questions = input(&["--ui"]).questions();
-        assert!(!questions.contains(&Question::Tailwind));
-        assert!(!questions.contains(&Question::Icons));
-        assert!(!questions.contains(&Question::Font));
-        assert!(questions.contains(&Question::Database));
-    }
-
-    #[test]
-    fn ui_is_asked_before_its_prerequisites() {
-        let mut input = input::<&str>(&[]);
-        while let Some(&question) = input.questions().first() {
-            assert!(
-                !matches!(
-                    question,
-                    Question::Tailwind | Question::Icons | Question::Font
-                ),
-                "{question:?} is asked before Topcoat UI"
-            );
-            if question == Question::Ui {
-                break;
-            }
-            input.answer(match question {
-                Question::Routing => Answer::Routing(Routing::Module),
-                Question::Database => Answer::Database(Database::None),
-                Question::Interaction => Answer::Interaction(Interaction::None),
-                _ => unreachable!("{question:?}"),
-            });
-        }
-
-        input.answer(Answer::Ui(true));
-        let questions = input.questions();
-        for prerequisite in [Question::Tailwind, Question::Icons, Question::Font] {
-            assert!(!questions.contains(&prerequisite), "{prerequisite:?}");
-        }
-    }
-
-    #[test]
-    fn ui_loads_geist_unless_a_font_is_chosen() {
-        let options = resolve(&[
-            "--routing",
-            "module",
-            "--database",
-            "none",
-            "--interaction",
-            "none",
-            "--ui",
-            "--no-example",
-        ])
-        .unwrap();
-        assert_eq!(
-            options.font,
-            FontSetup::Fontsource {
-                family: UI_FONT_FAMILY.to_string()
-            }
-        );
-        assert_eq!(
-            options.icons,
-            IconSetup::Iconify {
-                set: UI_ICON_SET.to_string()
-            }
-        );
-
-        let options = resolve(&[
-            "--routing",
-            "module",
-            "--database",
-            "none",
-            "--interaction",
-            "none",
-            "--ui",
-            "--font",
-            "none",
-            "--no-example",
-        ])
-        .unwrap();
+        let options = resolve(&["--minimal", "--ui"]).unwrap();
+        assert_eq!(options.css, Css::Tailwind);
+        assert!(options.ui);
+        assert_eq!(options.icons, IconSetup::None);
         assert_eq!(options.font, FontSetup::None);
     }
 
     #[test]
-    fn ui_is_not_asked_once_unavailable() {
-        assert!(
-            !input(&["--no-tailwind"])
-                .questions()
-                .contains(&Question::Ui)
+    fn no_css_selects_plain_css() {
+        let options = resolve(&["--recommended", "--no-css", "--no-ui"]).unwrap();
+        assert_eq!(options.css, Css::None);
+        assert!(resolve(&["--recommended", "--no-css"]).is_err());
+        assert!(resolve(&["--minimal", "--ui", "--no-css"]).is_err());
+    }
+
+    #[test]
+    fn ui_font_default_follows_the_css_framework() {
+        let tailwind = resolve(&["--minimal", "--ui", "--font", "fontsource"]).unwrap();
+        assert_eq!(
+            tailwind.font,
+            FontSetup::Fontsource {
+                family: UI_FONT_FAMILY.to_string()
+            }
         );
-        assert!(
-            !input(&["--icons", "none"])
-                .questions()
-                .contains(&Question::Ui)
+
+        let chota = resolve(&[
+            "--minimal",
+            "--ui",
+            "--css",
+            "chota",
+            "--font",
+            "fontsource",
+        ])
+        .unwrap();
+        assert_eq!(
+            chota.font,
+            FontSetup::Fontsource {
+                family: DEFAULT_FONT_FAMILY.to_string()
+            }
         );
-        assert!(input(&["--tailwind"]).questions().contains(&Question::Ui));
     }
 
     #[test]
@@ -678,14 +545,13 @@ mod tests {
             Answer::Routing(Routing::Discover),
             Answer::Database(Database::Toasty),
             Answer::Interaction(Interaction::Htmx),
-            Answer::Tailwind(true),
+            Answer::Ui(false),
             Answer::Icons(Icons::Custom),
             Answer::Font(Font::Fontsource),
             Answer::Example(false),
         ] {
             answered.answer(answer);
         }
-        // Custom icons make Topcoat UI unavailable, so it is not asked.
         assert_eq!(answered.questions(), []);
 
         let flags = resolve(&[
@@ -695,7 +561,6 @@ mod tests {
             "toasty",
             "--interaction",
             "htmx",
-            "--tailwind",
             "--icons",
             "custom",
             "--font",
@@ -705,14 +570,6 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(answered.resolve().unwrap().options, flags);
-    }
-
-    #[test]
-    fn answering_no_tailwind_makes_ui_unavailable() {
-        let mut input = input(&["--icons", "iconify"]);
-        assert!(input.questions().contains(&Question::Ui));
-        input.answer(Answer::Tailwind(false));
-        assert!(!input.questions().contains(&Question::Ui));
     }
 
     #[test]
@@ -748,10 +605,8 @@ mod tests {
     }
 
     #[test]
-    fn ui_stages_its_icon_set_alongside_the_chosen_one() {
+    fn only_the_chosen_icon_set_is_staged() {
         let options = resolve(&["--recommended", "--icon-set", "tabler"]).unwrap();
-        let mut sets = options.icon_sets();
-        sets.sort_unstable();
-        assert_eq!(sets, [UI_ICON_SET, "tabler"]);
+        assert_eq!(options.icon_sets(), ["tabler"]);
     }
 }

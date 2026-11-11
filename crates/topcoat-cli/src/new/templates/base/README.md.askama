@@ -45,9 +45,6 @@ Then open <http://127.0.0.1:3000>.
 | --- | --- |
 | `src/app.rs`, `src/app/` | The route tree: the router, layouts, pages, and routes. |
 | `src/features.rs`, `src/features/` | Everything one feature owns, such as its data and business rules. |
-{%- if ui %}
-| `src/components.rs`, `src/components/` | Shared UI components that belong to no single feature. |
-{%- endif %}
 {%- if toasty %}
 | `src/db.rs` | The database connection. |
 | `toasty/` | The database migrations. Commit them with your code. |

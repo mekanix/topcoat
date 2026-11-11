@@ -3,13 +3,10 @@ use std::{fmt::Write as _, path::Path};
 use askama::Template;
 use topcoat_core_grammar::common::pretty::pretty_print_str;
 use topcoat_font::fontsource::{Family, Style};
-use topcoat_ui::{
-    Registry,
-    manage::{self, ScaffoldOptions},
-};
+use topcoat_ui::Registry;
 
 use super::{
-    choice::{DatabaseBackend, Interaction, Routing},
+    choice::{Css, DatabaseBackend, Interaction, Routing},
     manifest::{Dependency, Manifest},
     name::PackageName,
     options::{DatabaseSetup, FontSetup, IconSetup, ProjectOptions},
@@ -17,8 +14,8 @@ use super::{
 };
 use crate::common::format;
 
-/// The `topcoat` version generated applications depend on. The CLI is released together
-/// with `topcoat`.
+/// The `topcoat` version generated applications depend on when the CLI was installed
+/// from crates.io. The CLI is released together with `topcoat`.
 const TOPCOAT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The `tokio` version generated applications depend on.
 const TOKIO_VERSION: &str = "1.51.1";
@@ -28,12 +25,8 @@ const SERDE_VERSION: &str = "1";
 const TOASTY_VERSION: &str = "0.11";
 /// The Iconify set the home page renders an example icon from.
 const EXAMPLE_ICON_SET: &str = "lucide";
-/// The stylesheet at the package root: plain CSS, the Tailwind input, or the UI theme.
+/// The Tailwind input at the package root.
 const STYLESHEET: &str = "styles.css";
-/// The Topcoat UI components the home page uses.
-const UI_COMPONENTS: &[&str] = &["card"];
-/// The Topcoat UI components the todo example uses in addition.
-const EXAMPLE_UI_COMPONENTS: &[&str] = &["button", "input"];
 /// The UI theme's declaration of its sans-serif font, naming the family it expects.
 const THEME_FONT: &str = r#"--font-sans: "Geist", sans-serif;"#;
 
@@ -43,8 +36,6 @@ const THEME_FONT: &str = r#"--font-sans: "Geist", sans-serif;"#;
 struct MainRs {
     /// Whether the application stores its data with Toasty.
     toasty: bool,
-    /// Whether the application has Topcoat UI components.
-    ui: bool,
     /// Whether the application has a module of hand-written icons.
     custom_icons: bool,
 }
@@ -91,6 +82,7 @@ struct AppRs<'a> {
     discover: bool,
     paths: Paths,
     classes: Classes,
+    css: Css,
     interaction: Interaction,
     /// Whether the application stores its data with Toasty.
     toasty: bool,
@@ -209,8 +201,7 @@ impl Paths {
     }
 }
 
-/// `class` attributes for the starter's elements, each with a leading space: Tailwind
-/// utility classes, or nothing with the plain stylesheet.
+/// `class` attributes for the starter's elements, each with a leading space.
 #[derive(Clone, Copy)]
 struct Classes {
     main: &'static str,
@@ -228,10 +219,10 @@ struct Classes {
 }
 
 impl Classes {
-    /// Classes for the selected styling. With Topcoat UI, elements use the theme's colors.
-    fn new(tailwind: bool, ui: bool) -> Self {
-        if ui {
-            Self {
+    /// Classes for the selected styling. Tailwind UI uses the theme's colors.
+    fn new(css: Css, ui: bool) -> Self {
+        match (css, ui) {
+            (Css::Tailwind, true) => Self {
                 main: r#" class="mx-auto max-w-2xl px-4 py-16""#,
                 heading: r#" class="text-3xl font-semibold tracking-tight""#,
                 paragraph: r#" class="mt-4""#,
@@ -241,9 +232,8 @@ impl Classes {
                 input: "",
                 list: r#" class="mt-4 space-y-2""#,
                 item: r#" class="flex items-center gap-2""#,
-            }
-        } else if tailwind {
-            Self {
+            },
+            (Css::Tailwind, false) => Self {
                 main: r#" class="mx-auto max-w-2xl px-4 py-16""#,
                 heading: r#" class="text-3xl font-bold""#,
                 paragraph: r#" class="mt-4""#,
@@ -253,9 +243,19 @@ impl Classes {
                 input: r#" class="rounded border px-2 py-1""#,
                 list: r#" class="mt-4 space-y-2""#,
                 item: r#" class="flex items-center gap-2""#,
-            }
-        } else {
-            Self {
+            },
+            (Css::Chota, _) => Self {
+                main: r#" class="container""#,
+                heading: "",
+                paragraph: "",
+                link: "",
+                form: "",
+                button: r#" class="button primary""#,
+                input: "",
+                list: "",
+                item: "",
+            },
+            (Css::None, _) => Self {
                 main: "",
                 heading: "",
                 paragraph: "",
@@ -265,7 +265,7 @@ impl Classes {
                 input: "",
                 list: "",
                 item: "",
-            }
+            },
         }
     }
 }
@@ -276,7 +276,8 @@ impl Classes {
 struct FormsTodos {
     paths: Paths,
     classes: Classes,
-    /// Whether buttons use the Topcoat UI button component.
+    css: Css,
+    /// Whether buttons use the CSS framework's button component.
     ui: bool,
 }
 
@@ -294,7 +295,8 @@ struct FormsTodoId {
 struct TopcoatTodos {
     paths: Paths,
     classes: Classes,
-    /// Whether buttons use the Topcoat UI button component.
+    css: Css,
+    /// Whether buttons use the CSS framework's button component.
     ui: bool,
 }
 
@@ -307,7 +309,8 @@ struct TopcoatTodos {
 struct AlpineAjaxTodos {
     paths: Paths,
     classes: Classes,
-    /// Whether buttons use the Topcoat UI button component.
+    css: Css,
+    /// Whether buttons use the CSS framework's button component.
     ui: bool,
 }
 
@@ -317,7 +320,8 @@ struct AlpineAjaxTodos {
 struct HtmxTodos {
     paths: Paths,
     classes: Classes,
-    /// Whether buttons use the Topcoat UI button component.
+    css: Css,
+    /// Whether buttons use the CSS framework's button component.
     ui: bool,
 }
 
@@ -334,7 +338,8 @@ struct HtmxTodoId {
 struct DatastarTodos {
     paths: Paths,
     classes: Classes,
-    /// Whether buttons use the Topcoat UI button component.
+    css: Css,
+    /// Whether buttons use the CSS framework's button component.
     ui: bool,
 }
 
@@ -369,8 +374,6 @@ struct Readme<'a> {
     name: &'a str,
     /// Whether the application stores its data with Toasty.
     toasty: bool,
-    /// Whether the application has Topcoat UI components.
-    ui: bool,
     /// Whether the application includes the todo example.
     example: bool,
 }
@@ -394,9 +397,12 @@ pub fn generate(name: &PackageName, options: &ProjectOptions) -> Result<ProjectP
     if options.routing != Routing::Manual {
         manifest.dependency("topcoat", topcoat().features(["discover"]))?;
     }
-    if options.tailwind {
-        manifest.dependency("topcoat", topcoat().features(["tailwind"]))?;
-        manifest.build_dependency("topcoat", topcoat().features(["tailwind"]))?;
+    if options.css != Css::None {
+        let framework = options.css.module();
+        manifest.dependency("topcoat", topcoat().features([framework]))?;
+        if options.css == Css::Tailwind {
+            manifest.build_dependency("topcoat", topcoat().features([framework]))?;
+        }
     }
     match &options.icons {
         IconSetup::None => {}
@@ -467,34 +473,24 @@ pub fn generate(name: &PackageName, options: &ProjectOptions) -> Result<ProjectP
     // valid string literal.
     let title = format!("{:?}", name.as_str());
     let paths = Paths(options.routing);
-    let classes = Classes::new(options.tailwind, options.ui);
+    let classes = Classes::new(options.css, options.ui);
     let ui = options.ui;
+    let tailwind = options.css == Css::Tailwind;
 
-    // Topcoat UI: the theme as the Tailwind input and the components the pages use,
-    // planned like `topcoat ui init` followed by `topcoat ui add`.
-    if ui {
-        manifest.dependency("topcoat", topcoat().features(["ui"]))?;
+    // Tailwind UI uses the registry's theme with the framework-owned components.
+    if ui && tailwind {
         let registry = Registry::embedded(topcoat_ui_registry::FILES)
             .map_err(|error| format!("failed to load the UI registry: {error}"))?;
-        let mut components = UI_COMPONENTS.to_vec();
-        if options.example {
-            components.extend(EXAMPLE_UI_COMPONENTS);
-        }
-        let scaffold = manage::scaffold(
-            &registry,
-            &ScaffoldOptions {
-                theme: None,
-                components: &components,
-            },
-        )?;
-        for file in scaffold {
-            let contents = if file.path == Path::new(STYLESHEET) {
-                theme_with_font(&file.contents, font.as_ref())
-            } else {
-                file.contents
-            };
-            plan.add(file.path, contents)?;
-        }
+        let name = registry
+            .theme_names()
+            .next()
+            .ok_or_else(|| "the UI registry has no themes".to_string())?;
+        let theme = registry
+            .theme(name)
+            .ok_or_else(|| format!("unknown UI theme `{name}`"))?
+            .read_source()
+            .map_err(|error| format!("failed to read the UI theme: {error}"))?;
+        plan.add(STYLESHEET, theme_with_font(&theme, font.as_ref()))?;
     }
 
     plan.add(
@@ -525,9 +521,10 @@ pub fn generate(name: &PackageName, options: &ProjectOptions) -> Result<ProjectP
                 && options.example),
         paths,
         classes,
+        css: options.css,
         interaction: options.interaction,
         toasty,
-        tailwind: options.tailwind,
+        tailwind,
         iconify_example,
         icon_set_hint: iconify_set.filter(|_| !iconify_example),
         custom_icons,
@@ -537,28 +534,25 @@ pub fn generate(name: &PackageName, options: &ProjectOptions) -> Result<ProjectP
     plan.add("src/app.rs", format_rust("src/app.rs", &app)?)?;
     let main = render(&MainRs {
         toasty,
-        ui,
         custom_icons,
     })?;
     plan.add("src/main.rs", format_rust("src/main.rs", &main)?)?;
 
     let build = BuildRs {
-        tailwind: options.tailwind,
+        tailwind,
         icon_sets: options.icon_sets(),
     };
     if build.is_needed() {
         plan.add("build.rs", format_rust("build.rs", &render(&build)?)?)?;
     }
 
-    // With Tailwind, the stylesheet is the Tailwind input. Topcoat UI supplies its theme
-    // as the stylesheet instead.
-    if !ui {
-        let styles = if options.tailwind {
-            include_str!("templates/tailwind/styles.css")
-        } else {
-            include_str!("templates/base/styles.css")
-        };
-        plan.add(STYLESHEET, styles)?;
+    if tailwind && !ui {
+        plan.add(STYLESHEET, include_str!("templates/tailwind/styles.css"))?;
+    } else if options.css == Css::Chota {
+        plan.add(STYLESHEET, include_str!("templates/chota/styles.css"))?;
+        plan.add("theme.js", include_str!("templates/chota/theme.js"))?;
+    } else if options.css == Css::None {
+        plan.add(STYLESHEET, include_str!("templates/base/styles.css"))?;
     }
 
     plan.add("Cargo.toml", manifest.render())?;
@@ -568,7 +562,6 @@ pub fn generate(name: &PackageName, options: &ProjectOptions) -> Result<ProjectP
         render(&Readme {
             name: name.as_str(),
             toasty,
-            ui,
             example: options.example,
         })?,
     )?;
@@ -592,24 +585,53 @@ fn add_example(
     plan.add("src/features/todo.rs", feature)?;
 
     let ui = options.ui;
+    let css = options.css;
     let (todos, todo_id) = match options.interaction {
         Interaction::None => (
-            render(&FormsTodos { paths, classes, ui })?,
+            render(&FormsTodos {
+                paths,
+                classes,
+                css,
+                ui,
+            })?,
             Some(render(&FormsTodoId { paths })?),
         ),
         Interaction::AlpineAjax => (
-            render(&AlpineAjaxTodos { paths, classes, ui })?,
+            render(&AlpineAjaxTodos {
+                paths,
+                classes,
+                css,
+                ui,
+            })?,
             Some(render(&FormsTodoId { paths })?),
         ),
         Interaction::Htmx => (
-            render(&HtmxTodos { paths, classes, ui })?,
+            render(&HtmxTodos {
+                paths,
+                classes,
+                css,
+                ui,
+            })?,
             Some(render(&HtmxTodoId { paths })?),
         ),
         Interaction::Datastar => (
-            render(&DatastarTodos { paths, classes, ui })?,
+            render(&DatastarTodos {
+                paths,
+                classes,
+                css,
+                ui,
+            })?,
             Some(render(&DatastarTodoId { paths })?),
         ),
-        Interaction::Topcoat => (render(&TopcoatTodos { paths, classes, ui })?, None),
+        Interaction::Topcoat => (
+            render(&TopcoatTodos {
+                paths,
+                classes,
+                css,
+                ui,
+            })?,
+            None,
+        ),
     };
     plan.add("src/app/todos.rs", format_rust("src/app/todos.rs", &todos)?)?;
     if let Some(todo_id) = todo_id {
@@ -634,10 +656,16 @@ fn theme_with_font(theme: &str, font: Option<&FontInfo>) -> String {
     }
 }
 
-/// The `topcoat` dependency without default features. Features are added per
-/// integration and merged by the manifest.
+/// The `topcoat` dependency. A CLI built in a Topcoat checkout uses that checkout.
+/// Features are added per integration and merged by the manifest.
 fn topcoat() -> Dependency {
-    Dependency::new(TOPCOAT_VERSION).no_default_features()
+    let checkout = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if checkout.join("Topcoat.toml").is_file() {
+        let path = checkout.join("crates/topcoat");
+        Dependency::path(path.canonicalize().unwrap_or(path))
+    } else {
+        Dependency::new(TOPCOAT_VERSION)
+    }
 }
 
 fn render(template: &impl Template) -> Result<String, String> {
@@ -669,7 +697,7 @@ mod tests {
             routing: Routing::Module,
             database: DatabaseSetup::None,
             interaction: Interaction::None,
-            tailwind: false,
+            css: Css::None,
             icons: IconSetup::None,
             font: FontSetup::None,
             ui: false,
@@ -700,13 +728,20 @@ mod tests {
         let manifest: toml::Table = file(&plan, "Cargo.toml").unwrap().parse().unwrap();
         assert_eq!(manifest["package"]["name"].as_str(), Some("my-app"));
         let topcoat = &manifest["dependencies"]["topcoat"];
-        assert_eq!(topcoat["version"].as_str(), Some(TOPCOAT_VERSION));
-        assert_eq!(topcoat["default-features"].as_bool(), Some(false));
+        let framework = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../topcoat")
+            .canonicalize()
+            .unwrap();
+        assert_eq!(topcoat["path"].as_str(), framework.to_str());
+        assert!(topcoat.get("version").is_none());
+        assert!(topcoat.get("default-features").is_none());
         assert!(!features(topcoat).contains(&"runtime"));
         assert!(!features(topcoat).contains(&"tailwind"));
+        assert!(!features(topcoat).contains(&"chota"));
 
         assert!(file(&plan, "src/app.rs").unwrap().contains("\"my-app\""));
         assert!(file(&plan, "build.rs").is_none());
+        assert!(file(&plan, STYLESHEET).is_some());
         assert!(file(&plan, "src/icons.rs").is_none());
     }
 
@@ -915,7 +950,7 @@ mod tests {
     fn tailwind_builds_the_stylesheet_from_styles_css() {
         let name = PackageName::new("my-app").unwrap();
         let options = ProjectOptions {
-            tailwind: true,
+            css: Css::Tailwind,
             ..minimal()
         };
         let plan = generate(&name, &options).unwrap();
@@ -923,7 +958,7 @@ mod tests {
         let manifest: toml::Table = file(&plan, "Cargo.toml").unwrap().parse().unwrap();
         assert!(features(&manifest["dependencies"]["topcoat"]).contains(&"tailwind"));
         let build = &manifest["build-dependencies"]["topcoat"];
-        assert_eq!(build["default-features"].as_bool(), Some(false));
+        assert!(build.get("default-features").is_none());
         assert!(features(build).contains(&"tailwind"));
 
         let build_script = file(&plan, "build.rs").unwrap();
@@ -936,9 +971,43 @@ mod tests {
         );
     }
 
+    #[test]
+    fn chota_loads_its_stylesheet_without_a_build_script() {
+        let name = PackageName::new("my-app").unwrap();
+        let options = ProjectOptions {
+            css: Css::Chota,
+            ui: true,
+            example: true,
+            ..minimal()
+        };
+        let plan = generate(&name, &options).unwrap();
+
+        let manifest: toml::Table = file(&plan, "Cargo.toml").unwrap().parse().unwrap();
+        assert!(features(&manifest["dependencies"]["topcoat"]).contains(&"chota"));
+        assert!(manifest.get("build-dependencies").is_none());
+        assert!(file(&plan, "build.rs").is_none());
+        assert_eq!(
+            file(&plan, STYLESHEET),
+            Some(include_str!("templates/chota/styles.css"))
+        );
+        assert_eq!(
+            file(&plan, "theme.js"),
+            Some(include_str!("templates/chota/theme.js"))
+        );
+        let app = file(&plan, "src/app.rs").unwrap();
+        let theme = app.find("asset!(\"theme.js\")").unwrap();
+        let framework = app.find("chota::stylesheet!").unwrap();
+        let custom = app.find("asset!(\"styles.css\")").unwrap();
+        assert!(theme < framework && framework < custom);
+        assert!(app.contains("topcoat::chota::components"));
+        let todos = file(&plan, "src/app/todos.rs").unwrap();
+        assert!(todos.contains("topcoat::chota::components"));
+        assert!(!todos.contains("ButtonSize"));
+    }
+
     fn ui(font: &str) -> ProjectOptions {
         ProjectOptions {
-            tailwind: true,
+            css: Css::Tailwind,
             icons: IconSetup::Iconify {
                 set: EXAMPLE_ICON_SET.to_string(),
             },
@@ -951,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn ui_installs_its_theme_and_the_components_the_pages_use() {
+    fn tailwind_ui_uses_its_theme_and_framework_components() {
         let name = PackageName::new("my-app").unwrap();
         let options = ProjectOptions {
             example: true,
@@ -960,27 +1029,23 @@ mod tests {
         let plan = generate(&name, &options).unwrap();
 
         let manifest: toml::Table = file(&plan, "Cargo.toml").unwrap().parse().unwrap();
-        assert!(features(&manifest["dependencies"]["topcoat"]).contains(&"ui"));
+        assert!(!features(&manifest["dependencies"]["topcoat"]).contains(&"ui"));
 
         let theme = file(&plan, STYLESHEET).unwrap();
         assert!(theme.contains(THEME_FONT));
-        assert!(file(&plan, "components.toml").is_some());
-        let modules = file(&plan, "src/components.rs").unwrap();
-        for component in UI_COMPONENTS.iter().chain(EXAMPLE_UI_COMPONENTS) {
-            assert!(
-                modules.contains(&format!("pub mod {component};")),
-                "{component}"
-            );
-            let path = format!("src/components/{component}.rs");
-            assert!(file(&plan, &path).is_some(), "{component}");
-        }
+        assert!(file(&plan, "components.toml").is_none());
+        assert!(file(&plan, "src/components.rs").is_none());
         assert!(
-            file(&plan, "src/main.rs")
+            !file(&plan, "src/main.rs")
                 .unwrap()
                 .contains("mod components;")
         );
-        assert!(file(&plan, "src/app.rs").unwrap().contains("card("));
-        assert!(file(&plan, "src/app/todos.rs").unwrap().contains("button("));
+        let app = file(&plan, "src/app.rs").unwrap();
+        assert!(app.contains("topcoat::tailwind::components"));
+        assert!(app.contains("card("));
+        let todos = file(&plan, "src/app/todos.rs").unwrap();
+        assert!(todos.contains("topcoat::tailwind::components"));
+        assert!(todos.contains("button("));
     }
 
     #[test]
@@ -1012,10 +1077,6 @@ mod tests {
             }
             let manifest: toml::Table = file(&plan, "Cargo.toml").unwrap().parse().unwrap();
             assert!(manifest["dependencies"].get("serde").is_none(), "{label}");
-            let components = file(&plan, "src/components.rs").unwrap();
-            for component in EXAMPLE_UI_COMPONENTS {
-                assert!(!components.contains(component), "{label}: {component}");
-            }
             let app = file(&plan, "src/app.rs").unwrap();
             assert!(!app.contains("todo"), "{label}");
             // Module routing only discovers handlers for the example's runtime code.

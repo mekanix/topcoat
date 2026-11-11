@@ -20,6 +20,8 @@ topcoat new apps/web --name my-app
 
 The command initializes a Git repository unless the destination is inside an existing repository. Pass `--no-git` to skip Git initialization.
 
+When the CLI is installed from a Topcoat checkout with `cargo install --path crates/topcoat-cli`, generated applications use a path dependency on that checkout's `crates/topcoat`. A CLI installed from crates.io uses the released version instead.
+
 ## Use a preset
 
 Presets answer all feature questions without prompting. Supply the destination on the command line:
@@ -36,7 +38,7 @@ For a smaller starting point:
 topcoat new my-app --minimal
 ```
 
-`--minimal` includes module routing and a plain CSS stylesheet, without a database, browser interaction library, icons, fonts, UI components, or the todo example.
+`--minimal` includes module routing and a plain CSS stylesheet, without a CSS framework, database, browser interaction library, icons, fonts, UI components, or the todo example.
 
 ## Customize features
 
@@ -61,18 +63,26 @@ The main feature options are:
 | `--routing` | `module`, `discover`, `manual` |
 | `--database` | `toasty`, `none` |
 | `--interaction` | `topcoat`, `htmx`, `datastar`, `alpine-ajax`, `none` |
-| `--tailwind` / `--no-tailwind` | Tailwind CSS or a plain CSS stylesheet |
+| `--css` / `--no-css` | `tailwind`, `chota`, or a plain CSS stylesheet |
 | `--icons` | `iconify`, `custom`, `none` |
 | `--font` | `fontsource`, `none` |
-| `--ui` / `--no-ui` | Include or omit Topcoat UI components |
+| `--ui` / `--no-ui` | Include or omit components from the selected CSS framework |
 | `--example` / `--no-example` | Include or omit the todo example |
 
 Use `--icon-set` to choose an Iconify set and `--font-family` to choose a Fontsource family ID. These settings require their corresponding integrations. Toasty uses SQLite, which is also selectable with `--database-backend sqlite`.
 
-Topcoat UI requires Tailwind and Iconify. When overriding a preset, update related choices together. For example, disabling Tailwind in the recommended preset also requires disabling UI components:
+Tailwind is the default except with `--minimal`, which uses plain CSS. Use Chota with `--css chota`. UI components work with either framework. Selecting UI without a framework selects Tailwind:
 
 ```sh
-topcoat new my-app --recommended --no-tailwind --no-ui
+topcoat new my-app --recommended --css chota
+```
+
+Tailwind UI uses the Topcoat UI theme. Chota UI uses Chota's native styles. Both use components provided by their respective Topcoat integration rather than copying component source into the application.
+
+Use `--no-css` to select plain CSS explicitly. UI components require a framework, so disable them when overriding a preset that includes them:
+
+```sh
+topcoat new my-app --recommended --no-css --no-ui
 ```
 
 Run `topcoat new --help` for all options and defaults.

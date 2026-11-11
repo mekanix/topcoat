@@ -106,14 +106,11 @@ pub fn ask(input: &mut Input) -> Result<(), String> {
             )?),
             Question::Ui => Answer::Ui(confirm(
                 &format!(
-                    "Topcoat UI components\n{}",
-                    style("Includes Tailwind CSS, Lucide icons, and the Geist font").dim()
+                    "CSS framework components\n{}",
+                    style("Uses the framework selected by --css").dim()
                 ),
                 recommended.ui,
             )?),
-            Question::Tailwind => {
-                Answer::Tailwind(confirm("Tailwind CSS", recommended.tailwind)?)
-            }
             Question::Icons => Answer::Icons(select(
                 "Icon integration",
                 &[

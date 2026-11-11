@@ -38,6 +38,7 @@ changelog_include = [
     "topcoat-asset-grammar",
     "topcoat-asset-macro",
     "topcoat-cli",
+    "topcoat-chota",
     "topcoat-cookie",
     "topcoat-core",
     "topcoat-core-grammar",
@@ -93,6 +94,11 @@ version_group = "topcoat"
 
 [[package]]
 name = "topcoat-cli"
+release = true
+version_group = "topcoat"
+
+[[package]]
+name = "topcoat-chota"
 release = true
 version_group = "topcoat"
 

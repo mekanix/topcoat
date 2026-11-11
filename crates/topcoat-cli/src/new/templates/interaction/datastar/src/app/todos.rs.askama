@@ -10,8 +10,8 @@ use topcoat::{
 };
 
 {% if ui -%}
-use crate::components::button::{ButtonSize, ButtonVariant, button};
-use crate::components::input::input;
+use topcoat::{{ css.module() }}::components::button::{ButtonVariant{% if css == Css::Tailwind %}, ButtonSize{% endif %}, button};
+use topcoat::{{ css.module() }}::components::input::input;
 {% endif -%}
 use crate::features::todo::Todo;
 
@@ -55,7 +55,7 @@ pub async fn todo_list(cx: &Cx) -> Result<impl View> {
 {%- if ui %}
                             button(
                                 variant: ButtonVariant::Outline,
-                                size: ButtonSize::Sm,
+                                {% if css == Css::Tailwind %}size: ButtonSize::Sm,{% endif %}
                                 attrs: attributes! {
                                     data-on:click=(("@patch('", href!(id::toggle, {{ paths.param_key("id") }}: todo.id), "')"))
                                 },
@@ -77,7 +77,7 @@ pub async fn todo_list(cx: &Cx) -> Result<impl View> {
 {%- if ui %}
                             button(
                                 variant: ButtonVariant::Ghost,
-                                size: ButtonSize::Sm,
+                                {% if css == Css::Tailwind %}size: ButtonSize::Sm,{% endif %}
                                 attrs: attributes! {
                                     data-on:click=(("@delete('", href!(id::delete, {{ paths.param_key("id") }}: todo.id), "')"))
                                 },

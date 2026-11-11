@@ -19,6 +19,9 @@ pub mod alpine_ajax;
 #[cfg(feature = "asset")]
 pub mod asset;
 
+#[cfg(feature = "chota")]
+pub mod chota;
+
 #[cfg(feature = "cookie")]
 pub mod cookie;
 

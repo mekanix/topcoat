@@ -3,8 +3,14 @@ use topcoat::{
     asset::{AssetBundle, RouterBuilderAssetExt},
     context::Cx,
     router::{Slot, layout, module_router, page},
-    tailwind,
-    view::{View, view},
+    tailwind::{
+        self,
+        components::{
+            badge::{BadgeVariant, badge},
+            button::{ButtonSize, ButtonVariant, button_variants},
+        },
+    },
+    view::{View, attributes, class, view},
 };
 
 #[tokio::main]
@@ -51,13 +57,11 @@ async fn home(cx: &Cx) -> Result<impl View> {
 
             // The inline style hides this badge until Tailwind's important
             // `flex!` utility overrides `display: none`.
-            <p
-                style="display: none"
-                class="flex! w-fit items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-800"
-            >
-                <span class="size-2 rounded-full bg-emerald-500"></span>
+            badge(
+                variant: BadgeVariant::Secondary,
+                attrs: attributes! { style="display: none" class="flex!" },
                 "Tailwind is working"
-            </p>
+            )
 
             <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-900">
                 "Topcoat + Tailwind"
@@ -69,7 +73,10 @@ async fn home(cx: &Cx) -> Result<impl View> {
 
             <a
                 href="https://tailwindcss.com/docs"
-                class="mt-6 inline-block rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-sm hover:bg-blue-500"
+                class=(class!(
+                    "mt-6",
+                    button_variants(ButtonVariant::Primary, ButtonSize::Md),
+                ))
             >
                 "Read the Tailwind docs"
             </a>

@@ -7,6 +7,7 @@ members = [
     "crates/topcoat-asset/grammar",
     "crates/topcoat-asset/macro",
     "crates/topcoat-cli",
+    "crates/topcoat-chota",
     "crates/topcoat-cookie",
     "crates/topcoat-core",
     "crates/topcoat-datastar",
@@ -42,6 +43,7 @@ members = [
 
     "examples/alpine-ajax",
     "examples/asset",
+    "examples/chota",
     "examples/cloudflare-worker",
     "examples/context",
     "examples/cookie",
@@ -127,6 +129,7 @@ topcoat-alpine-ajax = { version = "0.12.1", path = "crates/topcoat-alpine-ajax" 
 topcoat-asset = { version = "0.12.1", path = "crates/topcoat-asset" }
 topcoat-asset-grammar = { version = "0.12.1", path = "crates/topcoat-asset/grammar" }
 topcoat-asset-macro = { version = "0.12.1", path = "crates/topcoat-asset/macro" }
+topcoat-chota = { version = "0.12.1", path = "crates/topcoat-chota" }
 topcoat-cookie = { version = "0.12.1", path = "crates/topcoat-cookie" }
 topcoat-core = { version = "0.12.1", path = "crates/topcoat-core" }
 topcoat-core-grammar = { version = "0.12.1", path = "crates/topcoat-core/grammar" }

@@ -7,7 +7,6 @@
 //! ```
 
 use std::{
-    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -31,6 +30,17 @@ fn minimal_preset_compiles() {
 #[ignore = "slow; compiles a starter application"]
 fn minimal_preset_with_example_compiles() {
     check("minimal-example", &["--minimal", "--example"], false);
+}
+
+/// Chota's components with the todo example.
+#[test]
+#[ignore = "slow; compiles a starter application"]
+fn chota_ui_compiles() {
+    check(
+        "chota-ui",
+        &["--minimal", "--css", "chota", "--ui", "--example"],
+        false,
+    );
 }
 
 /// Toasty and Topcoat UI without the todo example, which has the only model and uses
@@ -59,7 +69,8 @@ fn mixed_choices_compile() {
             "none",
             "--interaction",
             "htmx",
-            "--tailwind",
+            "--css",
+            "tailwind",
             "--icons",
             "custom",
             "--font",
@@ -97,19 +108,7 @@ fn check(name: &str, args: &[&str], tailwind: bool) {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    // Build against this checkout instead of the published release. The generated
-    // manifest itself never contains local paths.
-    let framework = Path::new(env!("CARGO_MANIFEST_DIR")).join("../topcoat");
     let manifest = project.join("Cargo.toml");
-    let mut contents = fs::read_to_string(&manifest).unwrap();
-    // A literal TOML string needs no escaping, even for Windows paths.
-    writeln!(
-        contents,
-        "\n[patch.crates-io]\ntopcoat = {{ path = '{}' }}",
-        framework.canonicalize().unwrap().display()
-    )
-    .unwrap();
-    fs::write(&manifest, contents).unwrap();
 
     // Applications share a target directory, so dependencies with the same features
     // compile once.

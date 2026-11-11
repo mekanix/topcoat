@@ -232,6 +232,7 @@ view! { <link rel="stylesheet" href=(topcoat::tailwind::stylesheet!())> }
 
 **Asset system**
 - [Assets](https://docs.rs/topcoat/latest/topcoat/asset/index.html): declare assets in Rust, serve them with content-hashed URLs.
+- [Chota](https://docs.rs/topcoat/latest/topcoat/chota/index.html): bundle the Chota CSS framework.
 - [Fonts](https://docs.rs/topcoat/latest/topcoat/font/index.html): bundle and serve web fonts.
 - [Icons](https://docs.rs/topcoat/latest/topcoat/icon/index.html): download Iconify icon sets or declare your own.
 

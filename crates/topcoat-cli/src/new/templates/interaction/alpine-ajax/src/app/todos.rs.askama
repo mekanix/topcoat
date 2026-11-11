@@ -13,8 +13,8 @@ use topcoat::{
 };
 
 {% if ui -%}
-use crate::components::button::{ButtonSize, ButtonVariant, button};
-use crate::components::input::input;
+use topcoat::{{ css.module() }}::components::button::{ButtonVariant{% if css == Css::Tailwind %}, ButtonSize{% endif %}, button};
+use topcoat::{{ css.module() }}::components::input::input;
 {% endif -%}
 use crate::features::todo::Todo;
 
@@ -59,7 +59,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
 {%- if ui %}
                                     button(
                                         variant: ButtonVariant::Outline,
-                                        size: ButtonSize::Sm,
+                                        {% if css == Css::Tailwind %}size: ButtonSize::Sm,{% endif %}
                                         attrs: attributes! { type="submit" },
                                         if todo.done { "Undo" } else { "Done" }
                                     )
@@ -82,7 +82,7 @@ pub async fn page(cx: &Cx) -> Result<impl View> {
 {%- if ui %}
                                     button(
                                         variant: ButtonVariant::Ghost,
-                                        size: ButtonSize::Sm,
+                                        {% if css == Css::Tailwind %}size: ButtonSize::Sm,{% endif %}
                                         attrs: attributes! { type="submit" },
                                         "Delete"
                                     )

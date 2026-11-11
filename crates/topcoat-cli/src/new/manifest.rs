@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::PathBuf,
+};
 
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, value};
 
@@ -7,8 +10,8 @@ use super::name::PackageName;
 /// A dependency requirement in a generated manifest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Dependency {
-    version: &'static str,
-    default_features: bool,
+    version: Option<&'static str>,
+    path: Option<PathBuf>,
     features: BTreeSet<&'static str>,
 }
 
@@ -16,16 +19,19 @@ impl Dependency {
     /// Requires `version` with the dependency's default features.
     pub fn new(version: &'static str) -> Self {
         Self {
-            version,
-            default_features: true,
+            version: Some(version),
+            path: None,
             features: BTreeSet::new(),
         }
     }
 
-    /// Disables the dependency's default features.
-    pub fn no_default_features(mut self) -> Self {
-        self.default_features = false;
-        self
+    /// Requires the crate at `path` with its default features.
+    pub fn path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            version: None,
+            path: Some(path.into()),
+            features: BTreeSet::new(),
+        }
     }
 
     /// Enables `features` in addition to those already enabled.
@@ -35,9 +41,9 @@ impl Dependency {
     }
 
     /// Combines another requirement on the same crate by enabling the features of both.
-    /// Fails if the requirements differ in version or default features.
+    /// Fails if the requirements differ in source.
     fn merge(&mut self, name: &str, other: Self) -> Result<(), String> {
-        if self.version != other.version || self.default_features != other.default_features {
+        if self.version != other.version || self.path != other.path {
             return Err(format!(
                 "conflicting requirements on dependency `{name}`: {self:?} and {other:?}"
             ));
@@ -47,13 +53,17 @@ impl Dependency {
     }
 
     fn to_item(&self) -> Item {
-        if self.default_features && self.features.is_empty() {
-            return value(self.version);
+        if self.features.is_empty()
+            && let Some(version) = self.version
+        {
+            return value(version);
         }
         let mut table = InlineTable::new();
-        table.insert("version", self.version.into());
-        if !self.default_features {
-            table.insert("default-features", false.into());
+        if let Some(version) = self.version {
+            table.insert("version", version.into());
+        }
+        if let Some(path) = &self.path {
+            table.insert("path", path.to_string_lossy().into_owned().into());
         }
         if !self.features.is_empty() {
             table.insert(
@@ -176,7 +186,7 @@ mod tests {
     #[test]
     fn merges_features_of_repeated_requirements() {
         let mut manifest = manifest();
-        let topcoat = || Dependency::new("1.2.3").no_default_features();
+        let topcoat = || Dependency::new("1.2.3");
         manifest
             .dependency("topcoat", topcoat().features(["router", "view"]))
             .unwrap();
@@ -187,7 +197,7 @@ mod tests {
         let parsed = parse(&manifest);
         let topcoat = &parsed["dependencies"]["topcoat"];
         assert_eq!(topcoat["version"].as_str(), Some("1.2.3"));
-        assert_eq!(topcoat["default-features"].as_bool(), Some(false));
+        assert!(topcoat.get("default-features").is_none());
         let features: Vec<&str> = topcoat["features"]
             .as_array()
             .unwrap()
@@ -204,7 +214,7 @@ mod tests {
         assert!(manifest.dependency("tokio", Dependency::new("2")).is_err());
         assert!(
             manifest
-                .dependency("tokio", Dependency::new("1").no_default_features())
+                .dependency("tokio", Dependency::path("../tokio"))
                 .is_err()
         );
     }
@@ -214,7 +224,7 @@ mod tests {
         let mut manifest = manifest();
         manifest.dependency("tokio", Dependency::new("1")).unwrap();
         manifest
-            .build_dependency("topcoat", Dependency::new("1").no_default_features())
+            .build_dependency("topcoat", Dependency::new("1"))
             .unwrap();
 
         let parsed = parse(&manifest);

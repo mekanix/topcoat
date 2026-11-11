@@ -43,6 +43,30 @@ pub enum Interaction {
     None,
 }
 
+/// The CSS framework used by pages and components.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum Css {
+    /// Tailwind CSS, compiled from the application's utility classes
+    #[default]
+    Tailwind,
+    /// Chota's semantic styles, components, and utilities
+    Chota,
+    /// A plain stylesheet without a CSS framework
+    #[value(skip)]
+    None,
+}
+
+impl Css {
+    /// The framework's module name in the `topcoat` facade.
+    pub fn module(self) -> &'static str {
+        match self {
+            Self::Tailwind => "tailwind",
+            Self::Chota => "chota",
+            Self::None => unreachable!("plain CSS has no framework module"),
+        }
+    }
+}
+
 /// The source of icons.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum Icons {
