@@ -18,6 +18,10 @@ use super::{
 pub struct BuildOpts {
     pub bin: Option<String>,
     pub package: Option<String>,
+    /// Whether to disable the package's default features.
+    pub no_default_features: bool,
+    /// Cargo features to enable for the package being built.
+    pub features: Vec<String>,
     /// The cargo profile to build with, or `None` for the default (`dev`).
     pub profile: Option<String>,
 }
@@ -121,6 +125,13 @@ impl BuildOpts {
         if let Some(package) = &self.package {
             cmd.args(["--package", package]);
         }
+        if self.no_default_features {
+            cmd.arg("--no-default-features");
+        }
+        if !self.features.is_empty() {
+            let features = self.features.join(",");
+            cmd.args(["--features", features.as_str()]);
+        }
         // `--profile <name>` covers every profile: `--profile release` is
         // exactly equivalent to `--release`, and `--profile dev` to passing
         // nothing.
@@ -141,6 +152,12 @@ pub struct BuildFlags {
     /// Build the named package
     #[arg(short, long)]
     pub package: Option<String>,
+    /// Do not enable the package's default features
+    #[arg(long)]
+    pub no_default_features: bool,
+    /// Build with the named Cargo features (comma-separated)
+    #[arg(long, value_delimiter = ',')]
+    pub features: Vec<String>,
     /// Build with the `release` profile
     #[arg(short, long, conflicts_with = "profile")]
     pub release: bool,
@@ -159,6 +176,8 @@ impl From<BuildFlags> for BuildOpts {
         Self {
             bin: flags.bin,
             package: flags.package,
+            no_default_features: flags.no_default_features,
+            features: flags.features,
             profile,
         }
     }

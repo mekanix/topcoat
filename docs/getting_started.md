@@ -42,6 +42,14 @@ Start the development server:
 topcoat dev
 ```
 
+To enable optional Cargo features declared by the app, pass a comma-separated list. Add `--no-default-features` to disable the app package's default features:
+
+```sh
+topcoat dev --no-default-features --features feature1,feature2
+```
+
+The feature selection applies to the app's initial build and each rebuild. Without `--no-default-features`, Cargo enables the package's default features as usual.
+
 Open <http://127.0.0.1:3000>. Pages and layouts are in `src/app.rs` and `src/app/`. The dev server rebuilds the app and refreshes the page when source files change. Press `r` in the terminal to rebuild manually.
 
 To override the bind address, set `HOST` and `PORT` before running:
